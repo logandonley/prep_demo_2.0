@@ -1,0 +1,19 @@
+---
+kind: List
+apiVersion: v1
+items:
+- apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: "test-pv"
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    capacity:
+      storage: 1Gi
+    nfs:
+      path: "/exports/a4/data/pv1"
+      server: nfs.rhoil.core.rht-labs.com
+    persistentVolumeReclaimPolicy: Recycle
+  status:
+    phase: Available

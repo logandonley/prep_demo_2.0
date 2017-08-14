@@ -1,0 +1,42 @@
+---
+
+openshift_cluster:
+- object: namespace
+  content:
+  - name: "infographic-pipeline"
+    template: "{{ inventory_dir }}/../files/infographic/namespace/pipeline.yml"
+  - name: "infographic-dev"
+    template: "{{ inventory_dir }}/../files/infographic/namespace/development.yml"
+  - name: "infographic-test"
+    template: "{{ inventory_dir }}/../files/infographic/namespace/test.yml"
+  - name: "infographic-uat"
+    template: "{{ inventory_dir }}/../files/infographic/namespace/uat.yml"
+- object: policy
+  content:
+  - template: "{{ inventory_dir }}/../files/policy/clusterroles.yml"
+  - template: "{{ inventory_dir }}/../files/policy/clusterrolebindings.yml"
+  - template: "{{ inventory_dir }}/../files/policy/storageclass.yml"
+  - template: "{{ inventory_dir }}/../files/policy/groups.yml"
+  - template: "{{ inventory_dir }}/../files/policy/pvs.yml"
+- object: pipeline
+  content:
+  - name: "pipeline"
+    template: "{{ inventory_dir }}/../files/infographic/pipeline/template.yml"
+    params: "{{ inventory_dir }}/../files/infographic/pipeline/pipeline/params"
+- object: builds
+  content:
+  - name: "infographic"
+    template: "{{ inventory_dir }}/../files/infographic/build/template.yml"
+    params: "{{ inventory_dir }}/../files/infographic/build/pipeline/params"
+- object: deployments
+  content:
+  - name: "infographic-development"
+    template: "{{ inventory_dir }}/../files/infographic/deploy/template.yml"
+    params: "{{ inventory_dir }}/../files/infographic/deploy/development/params"
+  - name: "infographic-test"
+    template: "{{ inventory_dir }}/../files/infographic/deploy/template.yml"
+    params: "{{ inventory_dir }}/../files/infographic/deploy/test/params"
+  - name: "infographic-uat"
+    template: "{{ inventory_dir }}/../files/infographic/deploy/template.yml"
+    params: "{{ inventory_dir }}/../files/infographic/deploy/uat/params"
+

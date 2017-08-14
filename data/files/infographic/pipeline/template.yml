@@ -1,0 +1,268 @@
+---
+kind: Template
+apiVersion: v1
+metadata:
+  name: jenkins-s2i
+  annotations:
+    openshift.io/display-name: Jenkins S2I
+    description: Jenkins S2I build config to create a Jenkins image with your configuration
+      baked in.
+    iconClass: icon-jenkins
+    tags: instant-app,jenkins
+objects:
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    namespace: ${NAMESPACE}
+  spec:
+    triggers:
+    - type: GitHub
+      github:
+        secret: "${GITHUB_WEBHOOK_SECRET}"
+    - type: ConfigChange
+    runPolicy: Serial
+    source:
+      type: Git
+      git:
+        uri: "${SOURCE_REPOSITORY_URL}"
+        ref: "${SOURCE_REPOSITORY_REF}"
+    strategy:
+      type: Source
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: jenkins-2-rhel7:latest
+    output:
+      to:
+        kind: ImageStreamTag
+        name: "${NAME}:latest"
+- kind: PersistentVolumeClaim
+  apiVersion: v1
+  metadata:
+    name: test-pvc
+    namespace: ${NAMESPACE}
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: 1Gi
+    volumeName: test-pv
+  status:
+    accessModes:
+    - ReadWriteMany
+    capacity:
+      storage: 1Gi
+    phase: Bound
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: "${NAME}"
+    namespace: ${NAMESPACE}
+    annotations:
+      description: Keeps track of changes in the application image
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: jenkins-2-rhel7
+    namespace: ${NAMESPACE}
+  spec:
+    tags:
+    - name: latest
+      annotations:
+        openshift.io/imported-from: registry.access.redhat.com/openshift3/jenkins-2-rhel7
+      from:
+        kind: DockerImage
+        name: registry.access.redhat.com/openshift3/jenkins-2-rhel7
+- apiVersion: v1
+  kind: Route
+  metadata:
+    creationTimestamp: 
+    name: "${JENKINS_SERVICE_NAME}"
+    namespace: ${NAMESPACE}
+  spec:
+    tls:
+      insecureEdgeTerminationPolicy: Redirect
+      termination: edge
+    to:
+      kind: Service
+      name: "${JENKINS_SERVICE_NAME}"
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    creationTimestamp: 
+    name: "${JENKINS_SERVICE_NAME}"
+    namespace: ${NAMESPACE}
+  spec:
+    replicas: 1
+    selector:
+      name: "${JENKINS_SERVICE_NAME}"
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: 
+        labels:
+          name: "${JENKINS_SERVICE_NAME}"
+      spec:
+        containers:
+        - capabilities: {}
+          env:
+          - name: OPENSHIFT_ENABLE_OAUTH
+            value: "${ENABLE_OAUTH}"
+          - name: OPENSHIFT_ENABLE_REDIRECT_PROMPT
+            value: 'true'
+          - name: KUBERNETES_MASTER
+            value: https://kubernetes.default:443
+          - name: KUBERNETES_TRUST_CERTIFICATES
+            value: 'true'
+          - name: JNLP_SERVICE_NAME
+            value: "${JNLP_SERVICE_NAME}"
+          image: " "
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 30
+            httpGet:
+              path: "/login"
+              port: 8080
+            initialDelaySeconds: 420
+            timeoutSeconds: 3
+          name: jenkins
+          readinessProbe:
+            httpGet:
+              path: "/login"
+              port: 8080
+            initialDelaySeconds: 3
+            timeoutSeconds: 3
+          resources:
+            limits:
+              memory: "${MEMORY_LIMIT}"
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: "/dev/termination-log"
+          volumeMounts:
+          - mountPath: "/var/lib/jenkins"
+            name: "${JENKINS_SERVICE_NAME}-data"
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        serviceAccountName: "${JENKINS_SERVICE_NAME}"
+        volumes:
+        - emptyDir:
+            medium: ''
+          name: "${JENKINS_SERVICE_NAME}-data"
+    triggers:
+    - imageChangeParams:
+        automatic: true
+        containerNames:
+        - jenkins
+        from:
+          kind: ImageStreamTag
+          name: "${JENKINS_IMAGE_STREAM_TAG}"
+          namespace: "${NAMESPACE}"
+        lastTriggeredImage: ''
+      type: ImageChange
+    - type: ConfigChange
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    namespace: ${NAMESPACE}
+    annotations:
+      serviceaccounts.openshift.io/oauth-redirectreference.jenkins: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"${JENKINS_SERVICE_NAME}"}}'
+    name: "${JENKINS_SERVICE_NAME}"
+- apiVersion: v1
+  groupNames: 
+  kind: RoleBinding
+  metadata:
+    name: "${JENKINS_SERVICE_NAME}_edit"
+    namespace: ${NAMESPACE}
+  roleRef:
+    name: edit
+  subjects:
+  - kind: ServiceAccount
+    name: "${JENKINS_SERVICE_NAME}"
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: "${JNLP_SERVICE_NAME}"
+    namespace: ${NAMESPACE}
+  spec:
+    ports:
+    - name: agent
+      nodePort: 0
+      port: 50000
+      protocol: TCP
+      targetPort: 50000
+    selector:
+      name: "${JENKINS_SERVICE_NAME}"
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    namespace: ${NAMESPACE}
+    annotations:
+      service.alpha.openshift.io/dependencies: '[{"name": "${JNLP_SERVICE_NAME}",
+        "namespace": "", "kind": "Service"}]'
+      service.openshift.io/infrastructure: 'true'
+    creationTimestamp: 
+    name: "${JENKINS_SERVICE_NAME}"
+  spec:
+    ports:
+    - name: web
+      nodePort: 0
+      port: 80
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      name: "${JENKINS_SERVICE_NAME}"
+    sessionAffinity: None
+    type: ClusterIP
+parameters:
+- name: NAME
+  displayName: Name
+  description: The name assigned to all objects and the resulting imagestream.
+  required: true
+  value: jenkins
+- name: GITHUB_WEBHOOK_SECRET
+  displayName: GitHub Webhook Secret
+  description: A secret string used to configure the GitHub webhook.
+  generate: expression
+  from: "[a-zA-Z0-9]{40}"
+- name: SOURCE_REPOSITORY_URL
+  displayName: Git Repository URL
+  description: The URL of the repository with your application source code.
+  required: true
+  value: https://github.com/rht-labs/openshift-jenkins-s2i-config.git
+- name: SOURCE_REPOSITORY_REF
+  displayName: Git Reference
+  description: Set this to a branch name, tag or other ref of your repository if you
+    are not using the default (master) branch.
+- description: The name of the OpenShift Service exposed for the Jenkins container.
+  displayName: Jenkins Service Name
+  name: JENKINS_SERVICE_NAME
+  value: jenkins
+- description: The name of the service used for master/slave communication.
+  displayName: Jenkins JNLP Service Name
+  name: JNLP_SERVICE_NAME
+  value: jenkins-jnlp
+- description: Whether to enable OAuth OpenShift integration. If false, the static
+    account 'admin' will be initialized with the password 'password'.
+  displayName: Enable OAuth in Jenkins
+  name: ENABLE_OAUTH
+  value: 'true'
+- description: Maximum amount of memory the container can use.
+  displayName: Memory Limit
+  name: MEMORY_LIMIT
+  value: 1Gi
+- description: The OpenShift Namespace where the Jenkins ImageStream resides.
+  displayName: Jenkins ImageStream Namespace
+  name: NAMESPACE
+  value: infographic-pipeline
+- description: Name of the ImageStreamTag to be used for the Jenkins image.
+  displayName: Jenkins ImageStreamTag
+  name: JENKINS_IMAGE_STREAM_TAG
+  value: jenkins:latest
+labels:
+  template: jenkins-s2i-template

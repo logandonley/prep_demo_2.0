@@ -1,0 +1,4 @@
+---
+# Pulling Ansible Stacks from GitHub
+- src: https://github.com/oybed/ansible-stacks
+  version: templates
