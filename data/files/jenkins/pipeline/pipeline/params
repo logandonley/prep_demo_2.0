@@ -1,7 +1,0 @@
-NAME=jenkins
-NAMESPACE=infographic-pipeline
-SOURCE_REPOSITORY_URL=https://github.com/rht-labs/openshift-jenkins-s2i-config.git
-SOURCE_REPOSITORY_REF=master
-JENKINS_SERVICE_NAME=jenkins
-JNLP_SERVICE_NAME=jenkins-jnlp
-MEMORY_LIMIT=1Gi

@@ -9,7 +9,7 @@ items:
     annotations:
       openshift.io/description: ''
       openshift.io/display-name: Infographic UAT
-      openshift.io/requester: bob
+      openshift.io/requester: bender_rodriguez
     creationTimestamp:
     name: infographic-uat
   spec: {}

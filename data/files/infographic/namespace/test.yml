@@ -9,7 +9,7 @@ items:
     annotations:
       openshift.io/description: ''
       openshift.io/display-name: Infographic Test
-      openshift.io/requester: bob
+      openshift.io/requester: bender_rodriguez
     creationTimestamp:
     name: infographic-test
   spec: {}
